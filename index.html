@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weather + Location News</title>
+<style>
+  body { font-family: Arial; background:#eef2f7; padding:20px; }
+  .container { max-width:1000px; margin:auto; background:#fff; padding:20px; border-radius:8px; }
+  .row { display:flex; gap:20px; flex-wrap:wrap; }
+  .card { flex:1 1 320px; background:#f9fafb; padding:16px; border-radius:8px; }
+  input, button { width:100%; padding:10px; margin-top:10px; }
+  .news-item { border-bottom:1px solid #ccc; padding:10px 0; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h2>🌤 Weather + 📰 Location Based News</h2>
+
+  <div class="row">
+
+    <!-- WEATHER CARD -->
+    <div class="card">
+      <h3>Weather</h3>
+      <input id="city" placeholder="Enter city (e.g., Mumbai, London)" />
+      <button id="getWeatherBtn">Get Weather</button>
+      <div id="weatherBox">No data</div>
+    </div>
+
+    <!-- NEWS CARD -->
+    <div class="card">
+      <h3>News For This City</h3>
+      <div id="newsBox">Weather location news will appear here.</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// Attaching click handler to button
+document.getElementById("getWeatherBtn").onclick = getWeather;
+
+/* ------------------- WEATHER FUNCTION ------------------- */
+/*
+  This function:
+  1. Gets the city name from input
+  2. Converts city → latitude/longitude using Open-Meteo geocoding API
+  3. Fetches current weather using Open-Meteo forecast API
+  4. Displays weather info
+  5. Calls loadNews() to fetch news for the same city
+*/
+async function getWeather() {
+  const city = document.getElementById("city").value.trim();
+  const weatherBox = document.getElementById("weatherBox");
+
+  if (!city) {
+    weatherBox.innerHTML = "Please enter a city.";
+    return;
+  }
+
+  weatherBox.innerHTML = "Loading weather…";
+
+  try {
+    // STEP 1: Get latitude & longitude for city
+    const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
+    const geoData = await geoRes.json();
+
+    if (!geoData.results || geoData.results.length === 0) {
+      weatherBox.innerHTML = "City not found.";
+      return;
+    }
+
+    const { latitude, longitude, name, country } = geoData.results[0];
+
+    // STEP 2: Fetching current weather
+    const weatherRes = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`
+    );
+    const weatherData = await weatherRes.json();
+
+    const w = weatherData.current_weather;
+
+    // STEP 3: Displaying weather info
+    weatherBox.innerHTML = `
+      <h3>${name}, ${country}</h3>
+      <p>🌡 Temperature: ${w.temperature}°C</p>
+      <p>💨 Wind: ${w.windspeed} km/h</p>
+      <p>🕒 Time: ${w.time}</p>
+    `;
+
+    // STEP 4: Load news for this city
+    loadNews(name);
+
+  } catch (err) {
+    console.log(err);
+    weatherBox.innerHTML = "Error loading weather.";
+  }
+}
+
+/* ------------------- NEWS FUNCTION ------------------- */
+/*
+  This function:
+  1. Uses NewsData.io API
+  2. Searches news by city name
+  3. Displays top results
+  4. Handles no-results & errors
+*/
+async function loadNews(city) {
+  const API_KEY = "pub_c612d5775a41464a8f2fba5bc6a02020"; // <-- Replace with your NewsData.io key (API Key)
+  const newsBox = document.getElementById("newsBox");
+
+  newsBox.textContent = "Loading news for " + city + "...";
+
+  // Build API URL
+  const url = `https://newsdata.io/api/1/news?apikey=${API_KEY}&q=${encodeURIComponent(city)}&language=en`;
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (!data.results || data.results.length === 0) {
+      newsBox.textContent = "No news found for this city.";
+      return;
+    }
+
+    // Build HTML for news
+    let html = "";
+    data.results.forEach(n => {
+      html += `
+        <div class="news-item">
+          <h4>${n.title}</h4>
+          <p>${n.description || ""}</p>
+          <a href="${n.link}" target="_blank">Read more</a>
+        </div>
+      `;
+    });
+
+    newsBox.innerHTML = html;
+
+  } catch (err) {
+    console.log(err);
+    newsBox.textContent = "Error loading news.";
+  }
+}
+</script>
+
+</body>
+</html>
